@@ -157,6 +157,8 @@ class Player(commands.Cog):
         fav_card = data.get("currentFavouriteCard", {}).get("name", "Unknown")
         current_deck = data.get("currentDeck", [])
         deck_cards = current_deck[:8]
+        support_cards = data.get("currentDeckSupportCards", [])
+        tower_troop_name = support_cards[0].get("name")
 
         # Fetch card database once
         ALL_CARDS_FULL = await get_all_cards_full()
@@ -188,10 +190,18 @@ class Player(commands.Cog):
         embed.add_field(name="🏆 Trophies", value=str(trophies), inline=True)
         embed.add_field(name="🎯 Arena", value=arena, inline=True)
         embed.add_field(name="👥 Clan", value=clan, inline=True)
-        embed.add_field(name="🃏  Favorite Card", value=fav_card, inline=True)
-        embed.add_field(name="🎴  Current Deck", value=deck_text, inline=False)
+        embed.add_field(name="🏰 Tower", value=tower_troop_name, inline=True)
+        embed.add_field(name="🎴 Current Deck", value=deck_text, inline=False)
         embed.set_footer(text=f"Player Tag: {tag} • Avg Elixir: {avg_elixir}")
-
+        
+        # ---------------- SUPPORT CARD THUMBNAIL ----------------
+        if support_cards and isinstance(support_cards, list) and len(support_cards) > 0:
+            support_card = support_cards[0]
+            icon_url = support_card.get("iconUrls", {}).get("medium")
+            if icon_url:
+                embed.set_thumbnail(url=icon_url)
+        # ---------------------------------------------------------
+        
         # Generate deck image
         while len(deck_cards) < 8:
             deck_cards.append({"name": "Unknown", "iconUrls": {}})
@@ -220,7 +230,13 @@ class Player(commands.Cog):
         # Deck view
         from cogs.deck import CopyDeckView
         # pass the cached cards to the view
-        view = CopyDeckView(deck_cards=deck_cards, player_tag=tag, player_name=name, all_cards_full=ALL_CARDS_FULL)
+        view = CopyDeckView(
+            deck_cards=deck_cards,
+            player_tag=tag,
+            player_name=name,
+            all_cards_full=ALL_CARDS_FULL,
+            support_cards=support_cards
+        )
         await interaction.followup.send(embed=embed, file=file, view=view)
 
     # ------------------- ERROR HANDLER -------------------
