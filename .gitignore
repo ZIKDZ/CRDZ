@@ -11,3 +11,5 @@ venv/
 # VSCode
 .vscode/
 
+
+.env
