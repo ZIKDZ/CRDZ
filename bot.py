@@ -3,14 +3,15 @@ from discord.ext import commands
 from utils.clash_api import get_all_cards_full
 import config
 import asyncio
+import requests
 
-# Discord intents setup
+# ------------------- DISCORD SETUP -------------------
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Load cogs
+# ------------------- LOAD COGS -------------------
 async def load_cogs():
     for cog in ["cogs.player", "cogs.deck", "cogs.emote", "cogs.admin"]:
         try:
@@ -19,24 +20,34 @@ async def load_cogs():
         except Exception as e:
             print(f"❌ Failed to load cog {cog}: {e}")
 
+# ------------------- BOT READY EVENT -------------------
 @bot.event
 async def on_ready():
     """Handle bot startup and set status."""
-    print(f"✅ Logged in as {bot.user}")
+    print(f"\n✅ Logged in as {bot.user} (ID: {bot.user.id})")
 
+    # Fetch and print host public IP
+    try:
+        ip = requests.get("https://api.ipify.org").text
+        print(f"🌍 Public IP Address: {ip}")
+    except Exception as e:
+        print(f"⚠️ Could not fetch public IP: {e}")
+
+    # Preload Clash Royale data
     await get_all_cards_full()
 
-    activity = discord.Game(name="🏆 Clash Royale")
+    # Set bot status
+    activity = discord.Game(name="� Clash Royale")
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
-
+    # Sync slash commands
     try:
         synced = await bot.tree.sync()
         print(f"✅ Synced {len(synced)} slash commands.")
     except Exception as e:
         print(f"❌ Sync error: {e}")
 
-# Bot startup
+# ------------------- MAIN -------------------
 if __name__ == "__main__":
     asyncio.run(load_cogs())
     bot.run(config.DISCORD_TOKEN)
