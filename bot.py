@@ -37,7 +37,7 @@ async def on_ready():
     await get_all_cards_full()
 
     # Set bot status
-    activity = discord.Game(name="� Clash Royale")
+    activity = discord.Game(name="🏆 Clash Royale")
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
     # Sync slash commands
