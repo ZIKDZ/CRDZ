@@ -15,9 +15,9 @@ class Player(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # ------------------- PROFILE SETUP -------------------
+    # ------------------- PROFILE LINK -------------------
     @app_commands.command(
-        name="profile-setup",
+        name="profile-link",
         description="(Admins only) Link a Clash Royale profile to a Discord user and save their tag."
     )
     @app_commands.checks.has_permissions(manage_nicknames=True)
@@ -86,6 +86,46 @@ class Player(commands.Cog):
         save_data(saved_data)
         msg += "\n✅ Player tag saved successfully."
         await interaction.followup.send(msg)
+
+    # ------------------- PROFILE LINK -------------------
+    @app_commands.command(
+        name="profile-unlink",
+        description="(Mods only) Unlink a Clash Royale profile from a Discord user."
+    )
+    @app_commands.checks.has_permissions(manage_nicknames=True)
+    @app_commands.describe(
+        user="The Discord user to unlink the profile from"
+    )
+    async def profile_unlink(self, interaction: discord.Interaction, user: discord.Member):
+        await interaction.response.defer(ephemeral=True)
+
+        saved_data = load_data()
+        user_id = str(user.id)
+        if user_id not in saved_data:
+            await interaction.followup.send(f"{config.EMOJI_SAD} {user.mention} has no linked profile.")
+            return
+
+        # Remove roles
+        guild = interaction.guild
+        for role_id in [config.ROLE_UNDER_5K, config.ROLE_ABOVE_5K, config.ROLE_ABOVE_10K]:
+            role = guild.get_role(role_id)
+            if role and role in user.roles:
+                try:
+                    await user.remove_roles(role)
+                except Exception:
+                    pass
+
+        # Reset nickname (optional)
+        try:
+            original_nick = user.display_name.split(" | ")[0]
+            await user.edit(nick=original_nick)
+        except Exception:
+            pass
+
+        # Remove from saved data
+        del saved_data[user_id]
+        save_data(saved_data)
+        await interaction.followup.send(f"{config.EMOJI_LAUGH} Unlinked Clash Royale profile for {user.mention}.")    
 
     # ------------------- PLAYER PROFILE -------------------
     @app_commands.command(
