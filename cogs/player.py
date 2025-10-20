@@ -20,7 +20,7 @@ class Player(commands.Cog):
         name="profile-link",
         description="(Admins only) Link a Clash Royale profile to a Discord user and save their tag."
     )
-    @app_commands.checks.has_permissions(manage_nicknames=True)
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(
         user="The Discord user to link the profile to",
         tag="The Clash Royale player tag (e.g. #Y9R22RQ2)"
@@ -87,12 +87,12 @@ class Player(commands.Cog):
         msg += "\n✅ Player tag saved successfully."
         await interaction.followup.send(msg)
 
-    # ------------------- PROFILE LINK -------------------
+    # ------------------- PROFILE UNLINK -------------------
     @app_commands.command(
         name="profile-unlink",
         description="(Mods only) Unlink a Clash Royale profile from a Discord user."
     )
-    @app_commands.checks.has_permissions(manage_nicknames=True)
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(
         user="The Discord user to unlink the profile from"
     )
@@ -134,6 +134,7 @@ class Player(commands.Cog):
     )
     @app_commands.describe(user="The Discord user whose Clash Royale data you want to view")
     async def player(self, interaction: discord.Interaction, user: discord.Member):
+        # ... existing player command code stays THE SAME ...
         await interaction.response.defer(ephemeral=False)
 
         saved_data = load_data()
@@ -158,7 +159,7 @@ class Player(commands.Cog):
         current_deck = data.get("currentDeck", [])
         deck_cards = current_deck[:8]
         support_cards = data.get("currentDeckSupportCards", [])
-        tower_troop_name = support_cards[0].get("name")
+        tower_troop_name = support_cards[0].get("name") if support_cards else "None"
 
         # Fetch card database once
         ALL_CARDS_FULL = await get_all_cards_full()
@@ -167,17 +168,18 @@ class Player(commands.Cog):
         card_names, elixir_vals = [], []
         for c in deck_cards:
             nm = c.get("name")
-            card_names.append(nm)
-            card_info = ALL_CARDS_FULL.get(nm)
-            elx = card_info.get("elixir") or card_info.get("elixirCost") if card_info else c.get("elixirCost")
-            if elx:
-                try:
-                    elixir_vals.append(float(elx))
-                except Exception:
-                    pass
+            if nm:
+                card_names.append(nm)
+                card_info = ALL_CARDS_FULL.get(nm)
+                elx = card_info.get("elixir") or card_info.get("elixirCost") if card_info else c.get("elixirCost")
+                if elx:
+                    try:
+                        elixir_vals.append(float(elx))
+                    except Exception:
+                        pass
 
         avg_elixir = round(sum(elixir_vals) / len(elixir_vals), 1) if elixir_vals else "N/A"
-        deck_text = ", ".join(card_names) if card_names else "No current deck found."
+        deck_text = ", ".join(card_names[:8]) if card_names else "No current deck found."
 
         # Embed
         embed = discord.Embed(
@@ -186,21 +188,20 @@ class Player(commands.Cog):
             color=0xE6B72D
         )
         embed.add_field(name="👤 Name", value=name, inline=True)
-        embed.add_field(name="📈 EXP Level", value=str(exp), inline=True)
+        embed.add_field(name="⭐ EXP Level", value=str(exp), inline=True)
         embed.add_field(name="🏆 Trophies", value=str(trophies), inline=True)
-        embed.add_field(name="🎯 Arena", value=arena, inline=True)
+        embed.add_field(name="⚔️ Arena", value=arena, inline=True)
         embed.add_field(name="👥 Clan", value=clan, inline=True)
-        embed.add_field(name="🏰 Tower", value=tower_troop_name, inline=True)
-        embed.add_field(name="🎴 Current Deck", value=deck_text, inline=False)
+        embed.add_field(name="🗼 Tower", value=tower_troop_name, inline=True)
+        embed.add_field(name="📋 Current Deck", value=deck_text, inline=False)
         embed.set_footer(text=f"Player Tag: {tag} • Avg Elixir: {avg_elixir}")
         
-        # ---------------- SUPPORT CARD THUMBNAIL ----------------
-        if support_cards and isinstance(support_cards, list) and len(support_cards) > 0:
+        # Support card thumbnail
+        if support_cards and len(support_cards) > 0:
             support_card = support_cards[0]
             icon_url = support_card.get("iconUrls", {}).get("medium")
             if icon_url:
                 embed.set_thumbnail(url=icon_url)
-        # ---------------------------------------------------------
         
         # Generate deck image
         while len(deck_cards) < 8:
@@ -215,12 +216,17 @@ class Player(commands.Cog):
             except Exception:
                 font = ImageFont.load_default()
             avg_text = f"Avg Elixir: {avg_elixir}"
-            w, h = draw.textsize(avg_text, font=font)
+            try:
+                bbox = draw.textbbox((0, 0), avg_text, font=font)
+                w = bbox[2] - bbox[0]
+            except AttributeError:
+                w, _ = draw.textsize(avg_text, font=font)
             draw.text((img.width - w - 20, 22), avg_text, font=font, fill=(245, 245, 245))
             out_buf = io.BytesIO()
             img.save(out_buf, format="PNG")
             out_buf.seek(0)
-        except Exception:
+        except Exception as e:
+            print(f"Deck image error: {e}")
             buf.seek(0)
             out_buf = buf
 
@@ -229,7 +235,6 @@ class Player(commands.Cog):
 
         # Deck view
         from cogs.deck import CopyDeckView
-        # pass the cached cards to the view
         view = CopyDeckView(
             deck_cards=deck_cards,
             player_tag=tag,
@@ -239,12 +244,34 @@ class Player(commands.Cog):
         )
         await interaction.followup.send(embed=embed, file=file, view=view)
 
-    # ------------------- ERROR HANDLER -------------------
-    async def cog_command_error(self, interaction: discord.Interaction, error):
+    # ------------------- FIXED ERROR HANDLER -------------------
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        """Handle app command errors for profile-link, profile-unlink, and player."""
+        # Handle MissingPermissions from @app_commands.checks.has_permissions()
         if isinstance(error, app_commands.MissingPermissions):
-            await interaction.response.send_message("❌ You don’t have permission to use this command.", ephemeral=True)
-        else:
-            await interaction.response.send_message(f"❌ An error occurred: {error}", ephemeral=True)
+            embed = discord.Embed(
+                title="🔒 **Access Denied**",
+                description="**You don't have permission to use this command.**\n\n**Required:** `Administrator` permission",
+                color=0xff0000
+            )
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            return  # STOP ERROR PROPAGATION
+        
+        # Handle other AppCommandErrors
+        if isinstance(error, app_commands.AppCommandError):
+            embed = discord.Embed(
+                title="❌ **Command Error**",
+                description=f"`{str(error)}`",
+                color=0xff0000
+            )
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            return  # STOP ERROR PROPAGATION
 
 async def setup(bot):
     await bot.add_cog(Player(bot))
