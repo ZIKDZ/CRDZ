@@ -1,0 +1,5 @@
+142.111.48.253:7030:ClashRoyaleDZ:crdzpassword
+31.59.20.176:6754:ClashRoyaleDZ:crdzpassword
+38.170.176.177:5572:ClashRoyaleDZ:crdzpassword
+198.23.239.134:6540:ClashRoyaleDZ:crdzpassword
+45.38.107.97:6014:ClashRoyaleDZ:crdzpassword

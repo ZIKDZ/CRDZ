@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from utils.clash_api import get_all_cards_full
+from utils.clash_api import get_all_cards_full, initialize_proxies
 import config
 import asyncio
 import requests
@@ -46,6 +46,8 @@ async def on_ready():
         print(f"✅ Synced {len(synced)} slash commands.")
     except Exception as e:
         print(f"❌ Sync error: {e}")
+
+    await initialize_proxies()
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":
