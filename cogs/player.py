@@ -193,22 +193,7 @@ class Player(commands.Cog):
 
         buf = await generate_deck_image(deck_cards, exp)
         try:
-            img = Image.open(buf)
-            draw = ImageDraw.Draw(img)
-            try:
-                font = ImageFont.truetype("arial.ttf", 18)
-            except Exception:
-                font = ImageFont.load_default()
-            avg_text = f"Avg Elixir: {avg_elixir}"
-            try:
-                bbox = draw.textbbox((0, 0), avg_text, font=font)
-                w = bbox[2] - bbox[0]
-            except AttributeError:
-                w, _ = draw.textsize(avg_text, font=font)
-            draw.text((img.width - w - 20, 22), avg_text, font=font, fill=(245, 245, 245))
-            out_buf = io.BytesIO()
-            img.save(out_buf, format="PNG")
-            out_buf.seek(0)
+            out_buf = buf
         except Exception as e:
             print(f"Deck image error: {e}")
             buf.seek(0)
