@@ -4,7 +4,7 @@ from discord.ext import commands
 import config
 from utils.clash_api import get_player_data, get_all_cards_full
 from utils.data_store import load_data, save_data
-from utils.deck_image import generate_deck_image
+from utils.deck_utils import generate_deck_image
 from PIL import Image, ImageDraw, ImageFont
 import asyncio
 import io

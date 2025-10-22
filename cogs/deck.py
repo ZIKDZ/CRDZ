@@ -1,5 +1,5 @@
 import discord
-from utils.deck_link import build_deck_link
+from utils.deck_utils import build_deck_link
 
 class CopyDeckView(discord.ui.View):
     """Reusable 'Copy Deck' button view for Clash Royale decks."""
