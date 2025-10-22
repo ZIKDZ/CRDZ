@@ -32,9 +32,12 @@ class Player(commands.Cog):
         if data is None:
             await interaction.followup.send(f"{config.EMOJI_SAD} Couldn't find that player tag. Please check and try again.")
             return
-        
+
+        cr_name = data.get("name")
         trophies = data.get("trophies", 0)
-        
+
+        msg = f"{config.EMOJI_LAUGH} Linked **{cr_name}** to {user.mention}!\n{config.EMOJI_TROPHY} Trophies: {trophies}"
+
         # Role logic
         guild = interaction.guild
         role_under = guild.get_role(config.ROLE_UNDER_5K)
@@ -102,13 +105,6 @@ class Player(commands.Cog):
                     await user.remove_roles(role)
                 except Exception:
                     pass
-
-        # Reset nickname (optional)
-        try:
-            original_nick = user.display_name.split(" | ")[0]
-            await user.edit(nick=original_nick)
-        except Exception:
-            pass
 
         # Remove from saved data
         del saved_data[user_id]
