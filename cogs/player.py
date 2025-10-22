@@ -32,21 +32,9 @@ class Player(commands.Cog):
         if data is None:
             await interaction.followup.send(f"{config.EMOJI_SAD} Couldn't find that player tag. Please check and try again.")
             return
-
-        cr_name = data.get("name")
+        
         trophies = data.get("trophies", 0)
-        old_name = user.display_name
-        new_name = f"{old_name} | {cr_name}"
-
-        # Nickname update
-        try:
-            await user.edit(nick=new_name)
-            msg = f"{config.EMOJI_LAUGH} Nickname updated for {user.mention} → **{new_name}**!\n{config.EMOJI_TROPHY} Trophies: {trophies}"
-        except discord.Forbidden:
-            msg = f"{config.EMOJI_SAD} I don't have permission to change {user.mention}'s nickname."
-        except Exception as e:
-            msg = f"{config.EMOJI_THINK} Error updating nickname: {e}"
-
+        
         # Role logic
         guild = interaction.guild
         role_under = guild.get_role(config.ROLE_UNDER_5K)
