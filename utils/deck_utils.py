@@ -5,12 +5,11 @@ import urllib.parse
 import config
 from .clash_api import get_all_cards_full  # async function
 
-
 # ============================================================
-# � Deck Image Generator
+#  Deck Image Generator (in case of a fallback)
 # ============================================================
 
-async def generate_deck_image(deck_cards, player_level):
+async def fallback_deck_image(deck_cards, player_level):
     """Generate a 4x2 deck image with card icons and average elixir (rarity-based levels)."""
     # Layout constants
     card_w, card_h = 200, 300
@@ -168,9 +167,154 @@ async def generate_deck_image(deck_cards, player_level):
     buf.seek(0)
     return buf
 
+# ============================================================
+#  Deck Image Generator
+# ============================================================
+
+async def generate_deck_image(deck_cards, player_level):
+    """Generate a deck image using official background, fallback if needed."""
+    try:
+        # Load background
+        bg_path = "assets/Deck_Background.png"
+        bg = Image.open(bg_path).convert("RGBA")
+        img = bg.copy()
+        draw = ImageDraw.Draw(img)
+        bg_width, bg_height = img.size
+
+        # Fonts
+        try:
+            font_small = ImageFont.truetype(config.FONT_PATH, 28)
+            font_big = ImageFont.truetype(config.FONT_PATH, 40)
+        except Exception:
+            font_small = ImageFont.load_default()
+            font_big = ImageFont.load_default()
+
+        # Card coordinates + sizes
+        card_positions = [
+            (36, 187, 223, 323),
+            (294, 187, 223, 323),
+            (552, 223, 230, 347),
+            (817, 223, 230, 347),
+            (33, 648, 230, 347),
+            (294, 648, 230, 347),
+            (555, 648, 230, 347),
+            (816, 648, 230, 347)
+        ]
+
+        evo_limit = 1 if player_level < 30 else 2
+        elixir_vals = []
+        ALL_CARDS_FULL = await get_all_cards_full()
+
+        # Helper
+        def pick_best_icon(icon_dict, prefer_evo=False):
+            if not icon_dict:
+                return None
+            order = []
+            if prefer_evo:
+                order += ["evolutionLarge", "evolutionMedium", "evolutionSmall"]
+            order += ["large", "medium", "small", "icon", "thumbnail"]
+            for k in order:
+                if k in icon_dict and icon_dict[k]:
+                    return icon_dict[k]
+            for v in icon_dict.values():
+                if v:
+                    return v
+            return None
+
+        async with aiohttp.ClientSession() as session:
+            for idx, (x, y, w, h) in enumerate(card_positions):
+                if idx >= len(deck_cards):
+                    break
+                card = deck_cards[idx]
+                name = card.get("name", "Unknown")
+                icons = card.get("iconUrls", {}) or {}
+                card_info = ALL_CARDS_FULL.get(name) or {}
+                has_evo = card.get("evolutionLevel", 0) >= 1
+
+                if idx in (0, 1) and not has_evo:
+                    if idx == 0:
+                        x, y, w, h = 36, 187, 223, 279
+                    else:
+                        x, y, w, h = 294, 231, 223, 279
+
+                prefer_evo = (idx < evo_limit and has_evo)
+                url = pick_best_icon(icons, prefer_evo=prefer_evo)
+                if not url:
+                    url = pick_best_icon(card_info.get("iconUrls", {}) or {}, prefer_evo=prefer_evo)
+
+                elixir = (
+                    card.get("elixirCost")
+                    or card.get("elixir")
+                    or (card_info.get("elixirCost") if card_info else None)
+                    or (card_info.get("elixir") if card_info else None)
+                )
+                if elixir is not None:
+                    try:
+                        elixir_vals.append(float(elixir))
+                    except Exception:
+                        pass
+
+                if not url:
+                    draw.text((x + 10, y + 10), name[:20], font=font_small, fill=(255, 255, 255))
+                    continue
+
+                try:
+                    async with session.get(url, timeout=15) as r:
+                        if r.status != 200:
+                            raise RuntimeError(f"HTTP {r.status}")
+                        img_bytes = await r.read()
+                        card_img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
+                        try:
+                            alpha = card_img.split()[-1]
+                            bbox = alpha.getbbox()
+                        except Exception:
+                            bbox = card_img.getbbox()
+                        if bbox:
+                            card_img = card_img.crop(bbox)
+                        card_img = card_img.resize((w, h), Image.LANCZOS)
+                        img.paste(card_img, (x, y), card_img)
+
+                        # Card level
+                        level = card.get("level") or card.get("currentLevel") or 0
+                        rarity = (card.get("rarity") or (card_info.get("rarity") if card_info else "")).lower()
+                        if rarity == "rare":
+                            real_level = 2 + int(level)
+                        elif rarity == "epic":
+                            real_level = 5 + int(level)
+                        elif rarity == "legendary":
+                            real_level = 8 + int(level)
+                        elif rarity == "champion":
+                            real_level = 10 + int(level)
+                        else:
+                            real_level = int(level)
+
+                        lvl_text = f"Lvl {real_level}"
+                        text_w = draw.textlength(lvl_text, font=font_small)
+                        lvl_y = y + h + 8 if idx in (0, 1) else y + h - 64
+                        draw.text((x + (w - text_w) // 2, lvl_y), lvl_text, font=font_small, fill=(255, 255, 255))
+
+                except Exception as e:
+                    print(f"[DeckGen] Error loading/pasting card {name}: {e}")
+                    # fallback on this card
+                    buf = await fallback_deck_image(deck_cards, player_level)
+                    return buf
+
+        # Average elixir
+        avg_text = f"{round(sum(elixir_vals) / len(elixir_vals), 1)}" if elixir_vals else "N/A"
+        draw.text((150, bg_height - 115), avg_text, font=font_big, fill=(255, 255, 255))
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return buf
+
+    except Exception as e:
+        print(f"[DeckGen] Main generator failed, using fallback: {e}")
+        return await fallback_deck_image(deck_cards, player_level)
+
 
 # ============================================================
-# � Deck Link Builder
+#  Deck Link Builder
 # ============================================================
 
 def build_deck_link(deck_cards, player_tag, ALL_CARDS_FULL, support_cards=None):

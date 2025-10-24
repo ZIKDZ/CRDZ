@@ -177,7 +177,7 @@ class Player(commands.Cog):
         embed.add_field(name="⚔️ Arena", value=arena, inline=True)
         embed.add_field(name="👥 Clan", value=clan, inline=True)
         embed.add_field(name="🗼 Tower", value=tower_troop_name, inline=True)
-        embed.add_field(name="📋 Current Deck", value=deck_text, inline=False)
+        embed.add_field(name="📋 Current Deck", value="\u200b", inline=False)
         embed.set_footer(text=f"Player Tag: {tag} • Avg Elixir: {avg_elixir}")
         
         # Support card thumbnail
