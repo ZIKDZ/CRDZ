@@ -3,6 +3,7 @@ import aiohttp
 import asyncio
 import config
 import time
+from datetime import datetime
 from urllib.parse import quote
 
 # Cache for cards to avoid repeated API calls
@@ -171,7 +172,43 @@ async def get_all_cards_full(force_refresh: bool = False):
         
         return _card_cache or {}
 
-# Call this once when bot starts
 async def initialize_proxies():
     """Initialize proxy system at bot startup"""
     await start_proxy_monitor()
+
+def get_real_trophies(data: dict) -> int:
+    """
+    Returns the player's actual current trophies.
+    If 'trophies' == 10000, looks recursively for the seasonal-trophy-road-YYYYMM
+    and returns its 'trophies' value.
+    """
+    trophies = data.get("trophies", 0)
+    now = datetime.utcnow()
+    dynamic_key = f"seasonal-trophy-road-{now.year}{now.month:02d}"
+
+    def find_key_recursively(obj):
+        """Search for the seasonal key anywhere in the data."""
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k == dynamic_key and isinstance(v, dict):
+                    return v
+                found = find_key_recursively(v)
+                if found is not None:
+                    return found
+        elif isinstance(obj, list):
+            for item in obj:
+                found = find_key_recursively(item)
+                if found is not None:
+                    return found
+        return None
+
+    if trophies == 10000:
+        seasonal_data = find_key_recursively(data)
+        if seasonal_data:
+            seasonal_trophies = seasonal_data.get("trophies")
+            if seasonal_trophies is not None:
+                return seasonal_trophies
+
+    return trophies
+
+
